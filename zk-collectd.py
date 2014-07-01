@@ -32,8 +32,7 @@ import collectd
 from StringIO import StringIO
 
 ZK_HOSTS = ["192.168.10.2"]
-VERBOSE_LOGGING = True
-
+COUNTERS = ["zk_packets_received", "zk_packets_sent"]
 
 class ZooKeeperServer(object):
 
@@ -102,7 +101,7 @@ def read_callback():
             for k, v in stats.items():
                 try:
                     val = collectd.Values(plugin='zookeeper')
-                    val.type = "gauge"
+                    val.type = "counter" if k in COUNTERS else "gauge"
                     val.type_instance = k
                     val.values = [v]
                     val.dispatch()
