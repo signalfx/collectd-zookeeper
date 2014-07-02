@@ -1,0 +1,4 @@
+{
+	"project_id" : "CollectD Zookeeper",
+	"conduit_uri" : "http://phabricator.signalfuse.com/"
+}
