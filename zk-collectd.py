@@ -100,7 +100,7 @@ def read_callback():
             stats = zk.get_stats()
             for k, v in stats.items():
                 try:
-                    val = collectd.Values(plugin='zookeeper')
+                    val = collectd.Values(plugin='zookeeper', meta={'0':True})
                     val.type = "counter" if k in COUNTERS else "gauge"
                     val.type_instance = k
                     val.values = [v]
