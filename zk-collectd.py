@@ -35,7 +35,7 @@ CONFIGS = []
 
 ZK_HOSTS = ["192.168.10.2"]
 ZK_PORT = 2181
-ZK_POSTFIX = ""
+ZK_INSTANCE = ""
 COUNTERS = ["zk_packets_received", "zk_packets_sent"]
 
 class ZooKeeperServer(object):
@@ -105,10 +105,11 @@ def read_callback():
                 stats = zk.get_stats()
                 for k, v in stats.items():
                     try:
-                        val = collectd.Values(plugin='zookeeper%s' % conf['postfix'], meta={'0':True})
+                        val = collectd.Values(plugin='zookeeper', meta={'0':True})
                         val.type = "counter" if k in COUNTERS else "gauge"
                         val.type_instance = k
                         val.values = [v]
+                        val.plugin_instance = conf['instance']
                         val.dispatch()
                     except (TypeError, ValueError):
                         collectd.error('error dispatching stat; host=%s, key=%s, val=%s' % (host, k, v))
@@ -129,24 +130,24 @@ def configure_callback(conf):
     """Received configuration information"""
     zk_hosts = ZK_HOSTS
     zk_port = ZK_PORT
-    zk_postfix = ZK_POSTFIX
+    zk_instance = ZK_INSTANCE
     for node in conf.children:
         if node.key == 'Hosts':
             zk_hosts = node.values[0].split(',')
         elif node.key == 'Port':
             zk_port = node.values[0]
-        elif node.key == 'Postfix':
-            zk_postfix = node.values[0]
+        elif node.key == 'Instance':
+            zk_instance = node.values[0]
         else:
             collectd.warning('zookeeper plugin: Unknown config key: %s.'
                              % node.key)
             continue
 
-    log('Configured with hosts=%s, port=%s, postfix=%s' % (zk_hosts,zk_port,zk_postfix))
+    log('Configured with hosts=%s, port=%s, instance=%s' % (zk_hosts,zk_port,zk_instance))
     CONFIGS.append({
         'hosts': zk_hosts,
         'port': zk_port,
-        'postfix': zk_postfix,
+        'instance': zk_instance,
     })
     
 def log(msg):
