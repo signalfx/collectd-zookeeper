@@ -33,7 +33,7 @@ from StringIO import StringIO
 
 CONFIGS = []
 
-ZK_HOSTS = ["192.168.10.2"]
+ZK_HOSTS = ["localhost"]
 ZK_PORT = 2181
 ZK_INSTANCE = ""
 COUNTERS = ["zk_packets_received", "zk_packets_sent"]
@@ -133,7 +133,7 @@ def configure_callback(conf):
     zk_instance = ZK_INSTANCE
     for node in conf.children:
         if node.key == 'Hosts':
-            zk_hosts = node.values[0].split(',')
+            zk_hosts = [host.strip() for host in node.values[0].split(',')]
         elif node.key == 'Port':
             zk_port = node.values[0]
         elif node.key == 'Instance':
