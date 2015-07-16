@@ -31,7 +31,11 @@ import collectd
 
 from StringIO import StringIO
 
-ZK_HOSTS = ["192.168.10.2"]
+CONFIGS = []
+
+ZK_HOSTS = ["localhost"]
+ZK_PORT = 2181
+ZK_INSTANCE = ""
 COUNTERS = ["zk_packets_received", "zk_packets_sent"]
 
 class ZooKeeperServer(object):
@@ -94,43 +98,67 @@ class ZooKeeperServer(object):
 
 def read_callback():
     """ Get stats for all the servers in the cluster """
-    for host in ZK_HOSTS:
-        try:
-            zk = ZooKeeperServer(host)
-            stats = zk.get_stats()
-            for k, v in stats.items():
-                try:
-                    val = collectd.Values(plugin='zookeeper', meta={'0':True})
-                    val.type = "counter" if k in COUNTERS else "gauge"
-                    val.type_instance = k
-                    val.values = [v]
-                    val.dispatch()
-                except (TypeError, ValueError):
-                    collectd.error('error dispatching stat; host=%s, key=%s, val=%s' % (host, k, v))
-                    pass
-        except socket.error, e:
-            # ignore because the cluster can still work even 
-            # if some servers fail completely
-
-            # this error should be also visible in a variable
-            # exposed by the server in the statistics
-
-            log('unable to connect to server "%s"' % (host))
+    for conf in CONFIGS:
+        for host in conf['hosts']:
+            try:
+                zk = ZooKeeperServer(host, conf['port'])
+                stats = zk.get_stats()
+                for k, v in stats.items():
+                    try:
+                        val = collectd.Values(plugin='zookeeper', meta={'0':True})
+                        val.type = "counter" if k in COUNTERS else "gauge"
+                        val.type_instance = k
+                        val.values = [v]
+                        val.plugin_instance = conf['instance']
+                        val.dispatch()
+                    except (TypeError, ValueError):
+                        collectd.error('error dispatching stat; host=%s, key=%s, val=%s' % (host, k, v))
+                        pass
+            except socket.error, e:
+                # ignore because the cluster can still work even 
+                # if some servers fail completely
+    
+                # this error should be also visible in a variable
+                # exposed by the server in the statistics
+    
+                log('unable to connect to server "%s"' % (host))
 
     return stats
 
 
 def configure_callback(conf):
     """Received configuration information"""
-    global ZK_HOSTS
+    zk_hosts = ZK_HOSTS
+    zk_port = ZK_PORT
+    zk_instance = ZK_INSTANCE
     for node in conf.children:
         if node.key == 'Hosts':
-            ZK_HOSTS = node.values[0].split(',')
+            if len(node.values[0]) > 0:
+                zk_hosts = [host.strip() for host in node.values[0].split(',')]
+            else:
+                log("ERROR: Invalid Hosts string. Using default of %s" % zk_hosts)
+        elif node.key == 'Port':
+            if isinstance(node.values[0], float) and node.values[0] > 0 :
+                zk_port = node.values[0]
+            else:
+                log("ERROR: Invalid Port number. Using default of %s" % zk_port)
+        elif node.key == 'Instance':
+            if len(node.values[0]) > 0:
+                zk_instance = node.values[0]
+            else:
+                log("ERROR: Invalid Instance string. Using default of %s" % zk_instance)
         else:
             collectd.warning('zookeeper plugin: Unknown config key: %s.'
                              % node.key)
-    log('Configured with hosts=%s' % (ZK_HOSTS))
+            continue
 
+    log('Configured with hosts=%s, port=%s, instance=%s' % (zk_hosts,zk_port,zk_instance))
+    CONFIGS.append({
+        'hosts': zk_hosts,
+        'port': zk_port,
+        'instance': zk_instance,
+    })
+    
 def log(msg):
     collectd.info('zookeeper plugin: %s' % msg)
 
