@@ -133,11 +133,20 @@ def configure_callback(conf):
     zk_instance = ZK_INSTANCE
     for node in conf.children:
         if node.key == 'Hosts':
-            zk_hosts = [host.strip() for host in node.values[0].split(',')]
+            if len(node.values[0]) > 0:
+                zk_hosts = [host.strip() for host in node.values[0].split(',')]
+            else:
+                log("ERROR: Invalid Hosts string. Using default of %s" % zk_hosts)
         elif node.key == 'Port':
-            zk_port = node.values[0]
+            if isinstance(node.values[0], float) and node.values[0] > 0 :
+                zk_port = node.values[0]
+            else:
+                log("ERROR: Invalid Port number. Using default of %s" % zk_port)
         elif node.key == 'Instance':
-            zk_instance = node.values[0]
+            if len(node.values[0]) > 0:
+                zk_instance = node.values[0]
+            else:
+                log("ERROR: Invalid Instance string. Using default of %s" % zk_instance)
         else:
             collectd.warning('zookeeper plugin: Unknown config key: %s.'
                              % node.key)
