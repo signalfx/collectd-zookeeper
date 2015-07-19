@@ -1,33 +1,29 @@
-#! /usr/bin/env python
-#  Licensed to the Apache Software Foundation (ASF) under one
-# or more contributor license agreements.  See the NOTICE file
-# distributed with this work for additional information
-# regarding copyright ownership.  The ASF licenses this file
-# to you under the Apache License, Version 2.0 (the
-# "License"); you may not use this file except in compliance
-# with the License.  You may obtain a copy of the License at
+#!/usr/bin/env python
 
+#  Licensed to the Apache Software Foundation (ASF) under one or more
+#  contributor license agreements.  See the NOTICE file distributed with this
+#  work for additional information regarding copyright ownership.  The ASF
+#  licenses this file to you under the Apache License, Version 2.0 (the
+#  "License"); you may not use this file except in compliance with the License.
+#  You may obtain a copy of the License at
+#
 #     http://www.apache.org/licenses/LICENSE-2.0
-
+#
 # Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
-""" Check Zookeeper Cluster
+# distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+# WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
+# License for the specific language governing permissions and limitations under
+# the License.
 
-Zookeeper collectd module adapted from 
-https://svn.apache.org/repos/asf/zookeeper/trunk/src/contrib/monitoring/check_zookeeper.py
+"""Check Zookeeper Cluster.
 
-It requires ZooKeeper 3.4.0 or greater. The script needs the 'mntr' 4letter word 
-command (patch ZOOKEEPER-744) that was now commited to the trunk.
-The script also works with ZooKeeper 3.3.x but in a limited way.
+Requires ZooKeeper 3.4.0 or greater. The script needs the 'mntr' 4-letter word
+command (patch ZOOKEEPER-744) that was now commited to the trunk. The script
+also works with ZooKeeper 3.3.x but in a limited way.
 """
 
-import sys
-import socket
-import re
 import collectd
+import socket
 
 from StringIO import StringIO
 
@@ -36,7 +32,8 @@ CONFIGS = []
 ZK_HOSTS = ["localhost"]
 ZK_PORT = 2181
 ZK_INSTANCE = ""
-COUNTERS = ["zk_packets_received", "zk_packets_sent"]
+COUNTERS = set(["zk_packets_received", "zk_packets_sent"])
+
 
 class ZooKeeperServer(object):
 
@@ -45,7 +42,7 @@ class ZooKeeperServer(object):
         self._timeout = timeout
 
     def get_stats(self):
-        """ Get ZooKeeper server stats as a map """
+        """Get ZooKeeper server stats as a map."""
         data = self._send_cmd('mntr')
         return self._parse(data)
 
@@ -53,7 +50,7 @@ class ZooKeeperServer(object):
         return socket.socket()
 
     def _send_cmd(self, cmd):
-        """ Send a 4letter word command to the server """
+        """Send a 4letter word command to the server."""
         s = self._create_socket()
         s.settimeout(self._timeout)
 
@@ -66,7 +63,7 @@ class ZooKeeperServer(object):
         return data
 
     def _parse(self, data):
-        """ Parse the output from the 'mntr' 4letter word command """
+        """Parse the output from the 'mntr' 4letter word command."""
         h = StringIO(data)
 
         result = {}
@@ -76,7 +73,8 @@ class ZooKeeperServer(object):
                 if key not in ['zk_server_state', 'zk_version']:
                     result[key] = value
             except ValueError:
-                pass # ignore broken lines
+                # Ignore broken lines.
+                pass
 
         return result
 
@@ -96,8 +94,9 @@ class ZooKeeperServer(object):
 
         return key, value
 
+
 def read_callback():
-    """ Get stats for all the servers in the cluster """
+    """Get stats for all the servers in the cluster."""
     for conf in CONFIGS:
         for host in conf['hosts']:
             try:
@@ -105,22 +104,22 @@ def read_callback():
                 stats = zk.get_stats()
                 for k, v in stats.items():
                     try:
-                        val = collectd.Values(plugin='zookeeper', meta={'0':True})
-                        val.type = "counter" if k in COUNTERS else "gauge"
+                        val = collectd.Values(plugin='zookeeper',
+                                              meta={'0': True})
+                        val.type = 'counter' if k in COUNTERS else 'gauge'
                         val.type_instance = k
                         val.values = [v]
                         val.plugin_instance = conf['instance']
                         val.dispatch()
                     except (TypeError, ValueError):
-                        collectd.error('error dispatching stat; host=%s, key=%s, val=%s' % (host, k, v))
+                        collectd.error(('error dispatching stat; host=%s, '
+                                        'key=%s, val=%s') % (host, k, v))
                         pass
-            except socket.error, e:
-                # ignore because the cluster can still work even 
-                # if some servers fail completely
-    
-                # this error should be also visible in a variable
-                # exposed by the server in the statistics
-    
+            except socket.error:
+                # Ignore because the cluster can still work even
+                # if some servers fail completely.
+                # This error should be also visible in a variable
+                # exposed by the server in the statistics.
                 log('unable to connect to server "%s"' % (host))
 
     return stats
@@ -136,32 +135,35 @@ def configure_callback(conf):
             if len(node.values[0]) > 0:
                 zk_hosts = [host.strip() for host in node.values[0].split(',')]
             else:
-                log("ERROR: Invalid Hosts string. Using default of %s" % zk_hosts)
+                log(('ERROR: Invalid Hosts string. '
+                     'Using default of %s') % zk_hosts)
         elif node.key == 'Port':
-            if isinstance(node.values[0], float) and node.values[0] > 0 :
+            if isinstance(node.values[0], float) and node.values[0] > 0:
                 zk_port = node.values[0]
             else:
-                log("ERROR: Invalid Port number. Using default of %s" % zk_port)
+                log(('ERROR: Invalid Port number. '
+                     'Using default of %s') % zk_port)
         elif node.key == 'Instance':
             if len(node.values[0]) > 0:
                 zk_instance = node.values[0]
             else:
-                log("ERROR: Invalid Instance string. Using default of %s" % zk_instance)
+                log(('ERROR: Invalid Instance string. '
+                     'Using default of %s') % zk_instance)
         else:
             collectd.warning('zookeeper plugin: Unknown config key: %s.'
                              % node.key)
             continue
 
-    log('Configured with hosts=%s, port=%s, instance=%s' % (zk_hosts,zk_port,zk_instance))
-    CONFIGS.append({
-        'hosts': zk_hosts,
-        'port': zk_port,
-        'instance': zk_instance,
-    })
-    
+    config = {'hosts': zk_hosts,
+              'port': zk_port,
+              'instance': zk_instance}
+    log('Configured with %s.' % config)
+    CONFIGS.append(config)
+
+
 def log(msg):
     collectd.info('zookeeper plugin: %s' % msg)
 
+
 collectd.register_config(configure_callback)
 collectd.register_read(read_callback)
-
