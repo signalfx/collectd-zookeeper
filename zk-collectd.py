@@ -70,7 +70,9 @@ class ZooKeeperServer(object):
         for line in h.readlines():
             try:
                 key, value = self._parse_line(line)
-                if key not in ['zk_server_state', 'zk_version']:
+                if key == 'zk_server_state':
+                    result['zk_is_leader'] = int(value != 'follower')
+                elif key not in ['zk_version']:
                     result[key] = value
             except ValueError:
                 # Ignore broken lines.
