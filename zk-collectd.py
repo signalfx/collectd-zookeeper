@@ -99,6 +99,7 @@ class ZooKeeperServer(object):
 
 def read_callback():
     """Get stats for all the servers in the cluster."""
+    stats = None
     for conf in CONFIGS:
         for host in conf['hosts']:
             try:
