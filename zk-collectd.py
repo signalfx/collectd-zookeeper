@@ -113,7 +113,6 @@ def read_callback():
                         val.type_instance = k
                         val.values = [v]
                         val.plugin_instance = conf['instance']
-                        log("interval is {}".format(conf['interval']))
                         val.dispatch(interval = conf['interval'])
                     except (TypeError, ValueError):
                         collectd.error(('error dispatching stat; host=%s, '
