@@ -32,6 +32,7 @@ CONFIGS = []
 ZK_HOSTS = ["localhost"]
 ZK_PORT = 2181
 ZK_INSTANCE = ""
+ZK_INTERVAL = 1
 COUNTERS = set(["zk_packets_received", "zk_packets_sent"])
 
 
@@ -112,7 +113,8 @@ def read_callback():
                         val.type_instance = k
                         val.values = [v]
                         val.plugin_instance = conf['instance']
-                        val.dispatch()
+                        log("interval is {}".format(conf['interval']))
+                        val.dispatch(interval = conf['interval'])
                     except (TypeError, ValueError):
                         collectd.error(('error dispatching stat; host=%s, '
                                         'key=%s, val=%s') % (host, k, v))
@@ -132,6 +134,7 @@ def configure_callback(conf):
     zk_hosts = ZK_HOSTS
     zk_port = ZK_PORT
     zk_instance = ZK_INSTANCE
+    zk_interval = ZK_INTERVAL
     for node in conf.children:
         if node.key == 'Hosts':
             if len(node.values[0]) > 0:
@@ -151,6 +154,12 @@ def configure_callback(conf):
             else:
                 log(('ERROR: Invalid Instance string. '
                      'Using default of %s') % zk_instance)
+        elif node.key == 'Interval':
+            if isinstance(node.values[0], float) and node.values[0] > 0:
+                zk_interval = node.values[0]
+            else:
+                log(('ERROR: Invalid Interval Value. '
+                     'Using default of %s') % zk_interval)
         else:
             collectd.warning('zookeeper plugin: Unknown config key: %s.'
                              % node.key)
@@ -158,7 +167,8 @@ def configure_callback(conf):
 
     config = {'hosts': zk_hosts,
               'port': zk_port,
-              'instance': zk_instance}
+              'instance': zk_instance,
+              'interval': zk_interval}
     log('Configured with %s.' % config)
     CONFIGS.append(config)
 
