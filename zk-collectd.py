@@ -32,18 +32,23 @@ CONFIGS = []
 ZK_HOSTS = ["localhost"]
 ZK_PORT = 2181
 ZK_INSTANCE = ""
+ZK_CMDS = ["mntr","ruok"]
 COUNTERS = set(["zk_packets_received", "zk_packets_sent"])
 
 
 class ZooKeeperServer(object):
 
-    def __init__(self, host='localhost', port='2181', timeout=1):
+    def __init__(self, host='localhost', port='2181', cmd='mntr', timeout=1):
         self._address = (host, int(port))
         self._timeout = timeout
+        self._cmd = cmd
 
     def get_stats(self):
         """Get ZooKeeper server stats as a map."""
-        data = self._send_cmd('mntr')
+        data = self._send_cmd(self._cmd)
+        if self._cmd == "ruok":
+            return self._parse_ok(data)
+
         return self._parse(data)
 
     def _create_socket(self):
@@ -62,10 +67,16 @@ class ZooKeeperServer(object):
 
         return data
 
+    def _parse_ok(self, data):
+        """Parse the output from the 'ruok' 4letter word command."""
+        result = dict(zk_service_health=1)
+        if data != 'imok':
+            result = dict(zk_service_health=0)
+        return result
+
     def _parse(self, data):
         """Parse the output from the 'mntr' 4letter word command."""
         h = StringIO(data)
-
         result = {}
         for line in h.readlines():
             try:
@@ -102,8 +113,11 @@ def read_callback():
     for conf in CONFIGS:
         for host in conf['hosts']:
             try:
-                zk = ZooKeeperServer(host, conf['port'])
-                stats = zk.get_stats()
+                stats = {}
+                for cmd in ZK_CMDS:
+                    zk = ZooKeeperServer(host, conf['port'], cmd)
+                    results = zk.get_stats()
+                    stats.update(results)
                 for k, v in stats.items():
                     try:
                         val = collectd.Values(plugin='zookeeper',
