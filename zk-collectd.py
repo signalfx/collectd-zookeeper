@@ -32,7 +32,7 @@ CONFIGS = []
 ZK_HOSTS = ["localhost"]
 ZK_PORT = 2181
 ZK_INSTANCE = ""
-ZK_CMDS = ["mntr","ruok"]
+ZK_CMDS = ["mntr", "ruok"]
 COUNTERS = set(["zk_packets_received", "zk_packets_sent"])
 
 
@@ -56,14 +56,21 @@ class ZooKeeperServer(object):
 
     def _send_cmd(self, cmd):
         """Send a 4letter word command to the server."""
-        s = self._create_socket()
-        s.settimeout(self._timeout)
+        data = ""
+        s = socket.socket()
 
-        s.connect(self._address)
-        s.send(cmd)
+        try:
+            s.settimeout(self._timeout)
 
-        data = s.recv(2048)
-        s.close()
+            s.connect(self._address)
+            s.send(cmd)
+
+            data = s.recv(2048)
+            s.close()
+        except socket.timeout:
+            log('Service not healthy: timed out calling "%s"' % cmd)
+        except socket.error, e:
+            log('Service not healthy: error calling "%s": %s' % (cmd, e))
 
         return data
 
@@ -76,8 +83,12 @@ class ZooKeeperServer(object):
 
     def _parse(self, data):
         """Parse the output from the 'mntr' 4letter word command."""
-        h = StringIO(data)
         result = {}
+        try:
+            h = StringIO(data)
+        except:
+            return result
+
         for line in h.readlines():
             try:
                 key, value = self._parse_line(line)
@@ -110,10 +121,10 @@ class ZooKeeperServer(object):
 
 def read_callback():
     """Get stats for all the servers in the cluster."""
+    stats = {}
     for conf in CONFIGS:
         for host in conf['hosts']:
             try:
-                stats = {}
                 for cmd in ZK_CMDS:
                     zk = ZooKeeperServer(host, conf['port'], cmd)
                     results = zk.get_stats()
