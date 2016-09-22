@@ -25,15 +25,16 @@ also works with ZooKeeper 3.3.x but in a limited way.
 import collectd
 import socket
 
-from StringIO import StringIO
-
 CONFIGS = []
 
 ZK_HOSTS = ["localhost"]
 ZK_PORT = 2181
 ZK_INSTANCE = ""
-ZK_CMDS = ["mntr", "ruok"]
 COUNTERS = set(["zk_packets_received", "zk_packets_sent"])
+# 4-letter cmds and any expected response
+RUOK_CMD = "ruok"
+IMOK_RESP = "imok"
+MNTR_CMD = "mntr"
 
 
 class ZooKeeperServer(object):
@@ -45,14 +46,9 @@ class ZooKeeperServer(object):
     def get_stats(self):
         """Get ZooKeeper server stats as a map."""
         stats = {}
-        for cmd in ZK_CMDS:
-            data = self._send_cmd(cmd)
-            if cmd == "ruok":
-                results = self._parse_ok(data)
-                stats.update(results)
-
-            results = self._parse(data)
-            stats.update(results)
+        # methods for each four-letter cmd
+        stats.update(self._get_health_stat())
+        stats.update(self._get_mntr_stats())
         return stats
 
     def _create_socket(self):
@@ -60,7 +56,7 @@ class ZooKeeperServer(object):
 
     def _send_cmd(self, cmd):
         """Send a 4letter word command to the server."""
-        data = ""
+        response = ""
         s = socket.socket()
 
         try:
@@ -69,36 +65,33 @@ class ZooKeeperServer(object):
             s.connect(self._address)
             s.send(cmd)
 
-            data = s.recv(2048)
+            response = s.recv(2048)
             s.close()
         except socket.timeout:
             log('Service not healthy: timed out calling "%s"' % cmd)
         except socket.error, e:
             log('Service not healthy: error calling "%s": %s' % (cmd, e))
 
-        return data
+        return response
 
-    def _parse_ok(self, data):
-        """Parse the output from the 'ruok' 4letter word command."""
-        result = dict(zk_service_health=1)
-        if data != 'imok':
-            result = dict(zk_service_health=0)
-        return result
+    def _get_health_stat(self):
+        """Send the 'ruok' 4letter word command and parse the output."""
+        response = self._send_cmd(RUOK_CMD)
+        return {'zk_service_health': int(response == IMOK_RESP)}
 
-    def _parse(self, data):
-        """Parse the output from the 'mntr' 4letter word command."""
+    def _get_mntr_stats(self):
+        """Send 'mntr' 4letter word command and parse the output."""
+        response = self._send_cmd(MNTR_CMD)
         result = {}
-        try:
-            h = StringIO(data)
-        except:
-            return result
 
-        for line in h.readlines():
+        for line in response.splitlines():
             try:
                 key, value = self._parse_line(line)
                 if key == 'zk_server_state':
                     result['zk_is_leader'] = int(value != 'follower')
-                elif key not in ['zk_version']:
+                elif key == 'zk_version':
+                    continue
+                else:
                     result[key] = value
             except ValueError:
                 # Ignore broken lines.
@@ -140,8 +133,8 @@ def read_callback():
                     val.plugin_instance = conf['instance']
                     val.dispatch()
                 except (TypeError, ValueError):
-                    collectd.error(('error dispatching stat; host=%s, '
-                                    'key=%s, val=%s') % (host, k, v))
+                    log(('error dispatching stat; host=%s, '
+                         'key=%s, val=%s') % (host, k, v))
                     pass
 
     return stats
