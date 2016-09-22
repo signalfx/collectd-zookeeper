@@ -38,18 +38,22 @@ COUNTERS = set(["zk_packets_received", "zk_packets_sent"])
 
 class ZooKeeperServer(object):
 
-    def __init__(self, host='localhost', port='2181', cmd='mntr', timeout=1):
+    def __init__(self, host='localhost', port='2181', timeout=1):
         self._address = (host, int(port))
         self._timeout = timeout
-        self._cmd = cmd
 
     def get_stats(self):
         """Get ZooKeeper server stats as a map."""
-        data = self._send_cmd(self._cmd)
-        if self._cmd == "ruok":
-            return self._parse_ok(data)
+        stats = {}
+        for cmd in ZK_CMDS:
+            data = self._send_cmd(cmd)
+            if cmd == "ruok":
+                results = self._parse_ok(data)
+                stats.update(results)
 
-        return self._parse(data)
+            results = self._parse(data)
+            stats.update(results)
+        return stats
 
     def _create_socket(self):
         return socket.socket()
@@ -124,30 +128,21 @@ def read_callback():
     stats = {}
     for conf in CONFIGS:
         for host in conf['hosts']:
-            try:
-                for cmd in ZK_CMDS:
-                    zk = ZooKeeperServer(host, conf['port'], cmd)
-                    results = zk.get_stats()
-                    stats.update(results)
-                for k, v in stats.items():
-                    try:
-                        val = collectd.Values(plugin='zookeeper',
-                                              meta={'0': True})
-                        val.type = 'counter' if k in COUNTERS else 'gauge'
-                        val.type_instance = k
-                        val.values = [v]
-                        val.plugin_instance = conf['instance']
-                        val.dispatch()
-                    except (TypeError, ValueError):
-                        collectd.error(('error dispatching stat; host=%s, '
-                                        'key=%s, val=%s') % (host, k, v))
-                        pass
-            except socket.error:
-                # Ignore because the cluster can still work even
-                # if some servers fail completely.
-                # This error should be also visible in a variable
-                # exposed by the server in the statistics.
-                log('unable to connect to server "%s"' % (host))
+            zk = ZooKeeperServer(host, conf['port'])
+            stats = zk.get_stats()
+            for k, v in stats.items():
+                try:
+                    val = collectd.Values(plugin='zookeeper',
+                                          meta={'0': True})
+                    val.type = 'counter' if k in COUNTERS else 'gauge'
+                    val.type_instance = k
+                    val.values = [v]
+                    val.plugin_instance = conf['instance']
+                    val.dispatch()
+                except (TypeError, ValueError):
+                    collectd.error(('error dispatching stat; host=%s, '
+                                    'key=%s, val=%s') % (host, k, v))
+                    pass
 
     return stats
 
