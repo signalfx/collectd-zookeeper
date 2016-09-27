@@ -25,14 +25,16 @@ also works with ZooKeeper 3.3.x but in a limited way.
 import collectd
 import socket
 
-from StringIO import StringIO
-
 CONFIGS = []
 
 ZK_HOSTS = ["localhost"]
 ZK_PORT = 2181
 ZK_INSTANCE = ""
 COUNTERS = set(["zk_packets_received", "zk_packets_sent"])
+# 4-letter cmds and any expected response
+RUOK_CMD = "ruok"
+IMOK_RESP = "imok"
+MNTR_CMD = "mntr"
 
 
 class ZooKeeperServer(object):
@@ -43,36 +45,53 @@ class ZooKeeperServer(object):
 
     def get_stats(self):
         """Get ZooKeeper server stats as a map."""
-        data = self._send_cmd('mntr')
-        return self._parse(data)
+        stats = {}
+        # methods for each four-letter cmd
+        stats.update(self._get_health_stat())
+        stats.update(self._get_mntr_stats())
+        return stats
 
     def _create_socket(self):
         return socket.socket()
 
     def _send_cmd(self, cmd):
         """Send a 4letter word command to the server."""
-        s = self._create_socket()
-        s.settimeout(self._timeout)
+        response = ""
+        s = socket.socket()
 
-        s.connect(self._address)
-        s.send(cmd)
+        try:
+            s.settimeout(self._timeout)
 
-        data = s.recv(2048)
-        s.close()
+            s.connect(self._address)
+            s.send(cmd)
 
-        return data
+            response = s.recv(2048)
+            s.close()
+        except socket.timeout:
+            log('Service not healthy: timed out calling "%s"' % cmd)
+        except socket.error, e:
+            log('Service not healthy: error calling "%s": %s' % (cmd, e))
 
-    def _parse(self, data):
-        """Parse the output from the 'mntr' 4letter word command."""
-        h = StringIO(data)
+        return response
 
+    def _get_health_stat(self):
+        """Send the 'ruok' 4letter word command and parse the output."""
+        response = self._send_cmd(RUOK_CMD)
+        return {'zk_service_health': int(response == IMOK_RESP)}
+
+    def _get_mntr_stats(self):
+        """Send 'mntr' 4letter word command and parse the output."""
+        response = self._send_cmd(MNTR_CMD)
         result = {}
-        for line in h.readlines():
+
+        for line in response.splitlines():
             try:
                 key, value = self._parse_line(line)
                 if key == 'zk_server_state':
                     result['zk_is_leader'] = int(value != 'follower')
-                elif key not in ['zk_version']:
+                elif key == 'zk_version':
+                    continue
+                else:
                     result[key] = value
             except ValueError:
                 # Ignore broken lines.
@@ -99,30 +118,24 @@ class ZooKeeperServer(object):
 
 def read_callback():
     """Get stats for all the servers in the cluster."""
+    stats = {}
     for conf in CONFIGS:
         for host in conf['hosts']:
-            try:
-                zk = ZooKeeperServer(host, conf['port'])
-                stats = zk.get_stats()
-                for k, v in stats.items():
-                    try:
-                        val = collectd.Values(plugin='zookeeper',
-                                              meta={'0': True})
-                        val.type = 'counter' if k in COUNTERS else 'gauge'
-                        val.type_instance = k
-                        val.values = [v]
-                        val.plugin_instance = conf['instance']
-                        val.dispatch()
-                    except (TypeError, ValueError):
-                        collectd.error(('error dispatching stat; host=%s, '
-                                        'key=%s, val=%s') % (host, k, v))
-                        pass
-            except socket.error:
-                # Ignore because the cluster can still work even
-                # if some servers fail completely.
-                # This error should be also visible in a variable
-                # exposed by the server in the statistics.
-                log('unable to connect to server "%s"' % (host))
+            zk = ZooKeeperServer(host, conf['port'])
+            stats = zk.get_stats()
+            for k, v in stats.items():
+                try:
+                    val = collectd.Values(plugin='zookeeper',
+                                          meta={'0': True})
+                    val.type = 'counter' if k in COUNTERS else 'gauge'
+                    val.type_instance = k
+                    val.values = [v]
+                    val.plugin_instance = conf['instance']
+                    val.dispatch()
+                except (TypeError, ValueError):
+                    log(('error dispatching stat; host=%s, '
+                         'key=%s, val=%s') % (host, k, v))
+                    pass
 
     return stats
 
