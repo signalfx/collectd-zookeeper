@@ -54,7 +54,8 @@ All metrics are reported with the `plugin:zookeeper` dimension. Additionally,
 if you specify an `Instance` in your `Module` configuration block, its value
 will be reported as the `plugin_instance` dimension.
 
-zk_is_leader is a synthetic metric which is 0 iff the contents of zk_server_state is 'follower'
+zk_is_leader is a synthetic metric which is 0 if the contents of zk_server_state is 'follower'.
+zk_service_health is a synthetic metric which tracks if service is running and servicing requests.
 
 # License
 
