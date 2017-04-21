@@ -84,6 +84,15 @@ class ZooKeeperServer(object):
         response = self._send_cmd(MNTR_CMD)
         result = {}
 
+        # If instance stops serving requests (e.g. loses quorum) it still
+        # returns "imok" to ruok query but will force close any client
+        # connections and return an error string to all other 4 letter commands.
+        # In this situation we should override zk_service_health metric
+        # initially set in _get_health_stat as it's definitely not in a healthy
+        # state.
+        if response == 'This ZooKeeper instance is not currently serving requests\n':
+            return {'zk_service_health': 0}
+
         for line in response.splitlines():
             try:
                 key, value = self._parse_line(line)
