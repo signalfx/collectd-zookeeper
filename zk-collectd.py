@@ -162,7 +162,7 @@ def configure_callback(conf):
                 log(('ERROR: Invalid Hosts string. '
                      'Using default of %s') % zk_hosts)
         elif node.key == 'Port':
-            if isinstance(node.values[0], float) and node.values[0] > 0:
+            if isinstance(node.values[0], (float, int)) and node.values[0] > 0:
                 zk_port = node.values[0]
             else:
                 log(('ERROR: Invalid Port number. '
