@@ -98,8 +98,6 @@ class ZooKeeperServer(object):
                 key, value = self._parse_line(line)
                 if key == 'zk_server_state':
                     result['zk_is_leader'] = int(value != 'follower')
-                elif key == 'zk_version':
-                    continue
                 else:
                     result[key] = value
             except ValueError:
@@ -132,6 +130,8 @@ def read_callback():
         for host in conf['hosts']:
             zk = ZooKeeperServer(host, conf['port'])
             stats = zk.get_stats()
+            zk_version = stats['zk_version'].split(',')[0]
+            del stats['zk_version']
             for k, v in stats.items():
                 try:
                     val = collectd.Values(plugin='zookeeper',
@@ -139,7 +139,9 @@ def read_callback():
                     val.type = 'counter' if k in COUNTERS else 'gauge'
                     val.type_instance = k
                     val.values = [v]
-                    val.plugin_instance = conf['instance']
+                    val.plugin_instance = "%s[zk_version=%s]" % (
+                        conf['instance'], zk_version
+                    )
                     val.dispatch()
                 except (TypeError, ValueError):
                     log(('error dispatching stat; host=%s, '
