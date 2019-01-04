@@ -91,7 +91,10 @@ class ZooKeeperServer(object):
         # initially set in _get_health_stat as it's definitely not in a healthy
         # state.
         if response == 'This ZooKeeper instance is not currently serving requests\n':
-            return {'zk_service_health': 0}
+            return {
+                'zk_service_health': 0,
+                'zk_version': 'UNKNOWN',
+            }
 
         for line in response.splitlines():
             try:
