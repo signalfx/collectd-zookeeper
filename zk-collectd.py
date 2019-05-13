@@ -30,7 +30,7 @@ CONFIGS = []
 ZK_HOSTS = ["localhost"]
 ZK_PORT = 2181
 ZK_INSTANCE = ""
-COUNTERS = set(["zk_packets_received", "zk_packets_sent"])
+COUNTERS = set(["zk_packets_received", "zk_packets_sent", "zk_fsync_threshold_exceed_count"])
 # 4-letter cmds and any expected response
 RUOK_CMD = "ruok"
 IMOK_RESP = "imok"
