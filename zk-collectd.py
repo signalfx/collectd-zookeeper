@@ -56,7 +56,7 @@ class ZooKeeperServer(object):
 
     def _send_cmd(self, cmd):
         """Send a 4letter word command to the server."""
-        response = ""
+        response = b""
         s = self._create_socket()
 
         try:
