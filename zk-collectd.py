@@ -118,7 +118,11 @@ class ZooKeeperServer(object):
         try:
             value = int(value)
         except (TypeError, ValueError):
-            pass
+            try:
+                value = float(value)
+            except (TypeError, ValueError):
+                # a string value is possible so ignore
+                pass
 
         return key, value
 
