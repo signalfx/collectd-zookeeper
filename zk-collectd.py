@@ -93,6 +93,9 @@ class ZooKeeperServer(object):
         if response == "This ZooKeeper instance is not currently serving requests\n":
             return {"zk_service_health": 0, "zk_version": "UNKNOWN"}
 
+        if response == "mntr is not executed because it is not in the whitelist.\n":
+            raise RuntimeError("Unable to monitor ZooKeeper instance without being able to execute 'mntr' 4lw command")
+
         for line in response.splitlines():
             try:
                 key, value = self._parse_line(line)
