@@ -101,6 +101,9 @@ class ZooKeeperServer(object):
                 key, value = self._parse_line(line)
                 if key == "zk_server_state":
                     result["zk_is_leader"] = int(value != "follower")
+                # any value of type string, other than zk_is_leader and zk_version, will be skipped
+                elif key != "zk_version" and isinstance(value, str):
+                    collectd.debug("zookeeper plugin: key: %s value: key: %s not supported" % (key, value))
                 else:
                     result[key] = value
             except ValueError:
