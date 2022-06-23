@@ -63,9 +63,14 @@ class ZooKeeperServer(object):
             s.settimeout(self._timeout)
 
             s.connect(self._address)
-            s.send(cmd.encode("utf-8"))
+            s.sendall(cmd.encode("utf-8"))
+            s.shutdown(socket.SHUT_WR)
 
-            response = s.recv(2048)
+            while 1:
+                data = s.recv(2048)
+                if len(data) == 0:
+                    break
+                response += data
             s.close()
         except socket.timeout:
             log('Service not healthy: timed out calling "%s"' % cmd)
