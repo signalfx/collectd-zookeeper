@@ -145,7 +145,7 @@ def read_callback():
         for host in conf["hosts"]:
             zk = ZooKeeperServer(host, conf["port"])
             stats = zk.get_stats()
-            zk_version = stats["zk_version"].split(",")[0]
+            zk_version = stats["zk_version"].split(",")[0].replace(".", "_")
             del stats["zk_version"]
             for k, v in list(stats.items()):
                 try:
